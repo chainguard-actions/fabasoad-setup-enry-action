@@ -8,6 +8,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 
 | Version | Tag | Upstream commit |
 |---------|-----|-----------------|
+| v0.3.2 | [`v0.3.2`](https://github.com/chainguard-actions/fabasoad-setup-enry-action/tree/v0.3.2) | [`9f8bc60`](https://github.com/fabasoad/setup-enry-action/commit/9f8bc60781c838a8991a653fd890f741f838f8ad) |
 | v0.3.3 | [`v0.3.3`](https://github.com/chainguard-actions/fabasoad-setup-enry-action/tree/v0.3.3) | [`6a874de`](https://github.com/fabasoad/setup-enry-action/commit/6a874de8f6f098f550a300e3872ea1aa9e53bbfd) |
 
 ## Privacy
