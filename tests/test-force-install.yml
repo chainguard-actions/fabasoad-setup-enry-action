@@ -1,0 +1,41 @@
+name: Test force install flag behavior
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Pre-install fake enry binary
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          printf '#!/bin/sh\necho "enry version 2.8.7"\n' > "$HOME/.local/bin/enry"
+          chmod +x "$HOME/.local/bin/enry"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Verify enry pre-installed
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          enry --version
+      - name: Call action with force=false (should skip reinstall)
+        id: no-force
+        uses: .
+        with:
+          force: "false"
+      - name: Assert no-force install is skipped (installed=false)
+        env:
+          ACTUAL: ${{ steps.no-force.outputs.installed }}
+        run: |
+          echo "actual installed: $ACTUAL"
+          if [ "$ACTUAL" != "false" ]; then
+            echo "FAIL: expected installed='false' when force=false and enry already installed, got '$ACTUAL'"
+            exit 1
+          fi
+          echo "PASS: installed=false (correctly skipped when force=false)"
+      - name: Assert enry still available after no-force call
+        run: |
+          if ! command -v enry > /dev/null 2>&1; then
+            echo "FAIL: enry not found in PATH after no-force call"
+            exit 1
+          fi
+          echo "PASS: enry available after no-force call"
+          enry --version

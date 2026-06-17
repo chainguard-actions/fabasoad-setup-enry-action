@@ -1,0 +1,112 @@
+name: "Setup Enry"
+author: "Yevhen Fabizhevskyi"
+description: "Setup Enry GitHub Action"
+branding:
+  icon: terminal
+  color: gray-dark
+inputs:
+  version:
+    description: enry version. Defaults to the latest version.
+    required: false
+    default: "latest"
+  force:
+    description: |
+      If "false" skips installation if enry is already installed. If "true"
+      installs enry in any case. Defaults to "false".
+    required: false
+    default: "false"
+  github-token:
+    description: |
+      GitHub token that is used to send requests to GitHub API such as downloading
+      asset. Defaults to the token provided by GitHub Actions environment.
+    required: false
+    default: ${{ github.token }}
+outputs:
+  installed:
+    description: Whether enry was installed or not.
+    value: "${{ steps.install-enry.outcome == 'success' }}"
+runs:
+  using: "composite"
+  steps:
+    - name: Chainguard usage telemetry
+      shell: bash
+      run: |
+        # Best-effort, fails open. Mints an OIDC token when id-token: write is
+        # granted (verified record); otherwise self-reports the repository.
+        tok=""
+        if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+          tok=$(curl -sf --max-time 2 \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=actions.chainguard.dev" \
+            | sed -n 's/.*"value":"\([^"]*\)".*/\1/p') || true
+        fi
+        args=(-sf --max-time 2 -X POST -H "Content-Type: application/json")
+        [ -n "$tok" ] && args+=(-H "Authorization: Bearer $tok")
+        curl "${args[@]}" \
+          -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
+          "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
+    - name: Collect info
+      id: info
+      env:
+        INPUT_FORCE: "${{ inputs.force }}"
+      run: ./collect-info.sh "${INPUT_FORCE}"
+      shell: sh
+      working-directory: "${{ github.action_path }}/src"
+    - name: Setup curl
+      if: ${{ steps.info.outputs.bin-installed == 'false' && steps.info.outputs.curl-installed == 'false' }}
+      run: ./install-curl.sh
+      shell: sh
+      working-directory: "${{ github.action_path }}/src"
+    - name: Setup git
+      if: ${{ steps.info.outputs.bin-installed == 'false' && steps.info.outputs.git-installed == 'false' }}
+      run: ./install-git.sh
+      shell: sh
+      working-directory: "${{ github.action_path }}/src"
+    - name: Setup jq
+      if: ${{ steps.info.outputs.bin-installed == 'false' }}
+      uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 # v3
+    - name: Get latest release
+      if: ${{ steps.info.outputs.bin-installed == 'false' && inputs.version == 'latest' }}
+      id: latest-release
+      env:
+        INPUT_GITHUB_TOKEN: "${{ inputs.github-token }}"
+      run: ./get-latest-release.sh "go-enry/enry" "${INPUT_GITHUB_TOKEN}"
+      shell: sh
+      working-directory: "${{ github.action_path }}/src"
+    - name: Download enry
+      if: ${{ steps.info.outputs.bin-installed == 'false' }}
+      id: download-enry
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      with:
+        repository: "go-enry/enry"
+        ref: ${{ format('v{0}', inputs.version == 'latest' && steps.latest-release.outputs.version || inputs.version) }}
+        fetch-depth: 1
+        path: ${{ steps.info.outputs.bin-dir }}
+    - name: Setup Go
+      if: ${{ steps.info.outputs.bin-installed == 'false' && steps.info.outputs.go-installed == 'false' }}
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      with:
+        go-version-file: "${{ steps.info.outputs.bin-path }}/go.mod"
+        cache-dependency-path: "${{ steps.info.outputs.bin-path }}"
+    - name: Install enry
+      if: ${{ steps.info.outputs.bin-installed == 'false' }}
+      id: install-enry
+      env:
+        INPUT_VERSION: "${{ inputs.version }}"
+        ENRY_REF: "${{ steps.download-enry.outputs.ref }}"
+      run: |
+        go build -ldflags="-X main.commit=$(git rev-parse HEAD) -X main.version=${ENRY_REF}"
+        target_dir="${RUNNER_TEMP}/bin"
+        mkdir -p "${target_dir}"
+        mv enry "${target_dir}"
+        echo "${target_dir}" >> "$GITHUB_PATH"
+      shell: sh
+      working-directory: ${{ steps.info.outputs.bin-path }}
+    - name: Clean up
+      env:
+        BIN_PATH: "${{ steps.info.outputs.bin-path }}"
+      run: rm -rf "${BIN_PATH}"
+      shell: sh
+    - name: Print version
+      run: enry --version
+      shell: sh
