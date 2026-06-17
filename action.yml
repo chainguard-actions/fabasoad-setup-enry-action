@@ -1,0 +1,99 @@
+name: 'Setup Enry'
+author: 'Yevhen Fabizhevskyi'
+description: 'Setup Enry GitHub Action'
+branding:
+  icon: terminal
+  color: gray-dark
+inputs:
+  version:
+    description: 'enry version.'
+    required: false
+    default: '1.2.0'
+runs:
+  using: 'composite'
+  steps:
+    - name: Chainguard usage telemetry
+      shell: bash
+      run: |
+        # Best-effort, fails open. Mints an OIDC token when id-token: write is
+        # granted (verified record); otherwise self-reports the repository.
+        tok=""
+        if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+          tok=$(curl -sf --max-time 2 \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=actions.chainguard.dev" \
+            | sed -n 's/.*"value":"\([^"]*\)".*/\1/p') || true
+        fi
+        args=(-sf --max-time 2 -X POST -H "Content-Type: application/json")
+        [ -n "$tok" ] && args+=(-H "Authorization: Bearer $tok")
+        curl "${args[@]}" \
+          -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
+          "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
+    - name: Collect info
+      id: info
+      env:
+        RUNNER_OS: ${{ runner.os }}
+      run: |
+        ENRY_INSTALLED=$(if command -v enry > /dev/null 2>&1; then echo true; else echo false; fi)
+        echo "ENRY_INSTALLED=$ENRY_INSTALLED" >> $GITHUB_OUTPUT
+        if [ "$RUNNER_OS" = "macOS" ]; then
+          ENRY_BINARY=darwin
+        elif [ "$RUNNER_OS" = "Linux" ]; then
+          ENRY_BINARY=linux
+        else
+          ENRY_BINARY=windows
+        fi
+        echo "ENRY_BINARY=$ENRY_BINARY" >> $GITHUB_OUTPUT
+        mkdir -p "$GITHUB_WORKSPACE/enry"
+        echo "ENRY_PATH=$GITHUB_WORKSPACE/enry" >> $GITHUB_OUTPUT
+      shell: sh
+    - name: Download enry
+      if: ${{ steps.info.outputs.ENRY_INSTALLED == 'false' }}
+      uses: robinraju/release-downloader@768b85c8d69164800db5fc00337ab917daf3ce68 # v1.7
+      with:
+        repository: go-enry/enry
+        latest: false
+        tag: v${{ inputs.version }}
+        fileName: "enry-v${{ inputs.version }}-${{ steps.info.outputs.ENRY_BINARY }}-amd64.*"
+        tarBall: false
+        zipBall: false
+        out-file-path: enry
+    - name: Install dependencies (macOS)
+      if: ${{ steps.info.outputs.ENRY_INSTALLED == 'false' && runner.os == 'macOS' }}
+      run: brew install md5sha1sum
+      shell: sh
+    - name: Setup enry
+      if: ${{ steps.info.outputs.ENRY_INSTALLED == 'false' }}
+      env:
+        RUNNER_OS: ${{ runner.os }}
+        INPUT_VERSION: ${{ inputs.version }}
+        ENRY_BINARY: ${{ steps.info.outputs.ENRY_BINARY }}
+        ENRY_PATH: ${{ steps.info.outputs.ENRY_PATH }}
+      run: |
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          echo " enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.zip" >> "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.zip.md5"
+          md5sum --check "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.zip.md5"
+          unzip "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.zip"
+        else
+          echo " enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.tar.gz" >> "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.tar.gz.md5"
+          md5sum --check "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.tar.gz.md5"
+          tar -xvzf "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.tar.gz"
+          chmod +x ./enry
+        fi
+        safe_path=$(printf '%s' "$ENRY_PATH" | tr -d '\n\r')
+        echo "$safe_path" >> $GITHUB_PATH
+      shell: sh
+      working-directory: ${{ steps.info.outputs.ENRY_PATH }}
+    - name: Clean up
+      if: ${{ steps.info.outputs.ENRY_INSTALLED == 'false' }}
+      env:
+        RUNNER_OS: ${{ runner.os }}
+        INPUT_VERSION: ${{ inputs.version }}
+        ENRY_BINARY: ${{ steps.info.outputs.ENRY_BINARY }}
+      run: |
+        if [ "$RUNNER_OS" = "macOS" ]; then
+          brew uninstall md5sha1sum
+        fi
+        rm -f "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64."*
+      shell: sh
+      working-directory: ${{ steps.info.outputs.ENRY_PATH }}

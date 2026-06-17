@@ -1,0 +1,28 @@
+name: Test basic usage - default version
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup enry with default version
+        id: action
+        uses: .
+      - name: Assert enry is available
+        run: |
+          echo "Checking enry is in PATH..."
+          if ! command -v enry > /dev/null 2>&1; then
+            echo "FAIL: enry command not found in PATH"
+            exit 1
+          fi
+          echo "PASS: enry is available"
+      - name: Assert enry runs successfully
+        run: |
+          echo "Running enry --version..."
+          enry --version
+          if [ $? -ne 0 ]; then
+            echo "FAIL: enry --version returned non-zero exit code"
+            exit 1
+          fi
+          echo "PASS: enry ran successfully"

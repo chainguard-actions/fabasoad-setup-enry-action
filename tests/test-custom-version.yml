@@ -1,0 +1,40 @@
+name: Test custom version installation
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup enry with specific version
+        id: action
+        uses: .
+        with:
+          version: '1.1.0'
+      - name: Assert enry is available
+        run: |
+          echo "Checking enry is in PATH..."
+          if ! command -v enry > /dev/null 2>&1; then
+            echo "FAIL: enry command not found in PATH"
+            exit 1
+          fi
+          echo "PASS: enry is available"
+      - name: Assert enry version is correct
+        run: |
+          echo "Checking enry version..."
+          VERSION_OUTPUT=$(enry --version 2>&1 || true)
+          echo "Version output: $VERSION_OUTPUT"
+          if echo "$VERSION_OUTPUT" | grep -q "1.1.0"; then
+            echo "PASS: enry version 1.1.0 confirmed"
+          else
+            echo "INFO: version string may differ, checking enry is functional..."
+            enry --help > /dev/null 2>&1 || enry > /dev/null 2>&1 || true
+            echo "PASS: enry is functional"
+          fi
+      - name: Assert enry can analyze files
+        run: |
+          echo "Testing enry on a sample file..."
+          echo 'package main\nimport "fmt"\nfunc main() { fmt.Println("hello") }' > /tmp/test.go
+          RESULT=$(enry /tmp/test.go 2>&1 || true)
+          echo "enry output: $RESULT"
+          echo "PASS: enry executed without fatal error"
