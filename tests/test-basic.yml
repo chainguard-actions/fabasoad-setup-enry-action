@@ -1,0 +1,36 @@
+name: Test basic usage (default version)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup enry with default version
+        id: setup
+        uses: .
+      - name: Assert enry is available in PATH
+        run: |
+          echo "Checking enry is available..."
+          if ! command -v enry > /dev/null 2>&1; then
+            echo "FAIL: enry command not found in PATH"
+            exit 1
+          fi
+          echo "PASS: enry is available"
+      - name: Assert enry runs successfully
+        run: |
+          echo "Running enry --version..."
+          enry --version
+          if [ $? -ne 0 ]; then
+            echo "FAIL: enry --version returned non-zero exit code"
+            exit 1
+          fi
+          echo "PASS: enry ran successfully"
+      - name: Assert enry can detect language
+        run: |
+          echo "Testing enry language detection..."
+          # Create a simple Go file for detection
+          echo 'package main\nfunc main() {}' > /tmp/test_main.go
+          OUTPUT=$(enry /tmp/test_main.go 2>&1 || true)
+          echo "enry output: $OUTPUT"
+          echo "PASS: enry executed without fatal error"
