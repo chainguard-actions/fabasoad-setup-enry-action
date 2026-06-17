@@ -1,0 +1,43 @@
+name: Test specific version - skip install when enry already present
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Pre-install fake enry binary for version 2.5.0
+        run: |
+          cat > /usr/local/bin/enry << 'EOF'
+          #!/bin/sh
+          echo "enry version 2.5.0"
+          EOF
+          chmod +x /usr/local/bin/enry
+      - name: Verify enry is available
+        run: |
+          enry --version
+      - id: action
+        uses: .
+        with:
+          version: "2.5.0"
+          force: "false"
+          github-token: ${{ github.token }}
+      - name: Assert installed output is false (skipped because already installed)
+        env:
+          ACTUAL: ${{ steps.action.outputs.installed }}
+        run: |
+          echo "actual: $ACTUAL"
+          if [ "$ACTUAL" != "false" ]; then
+            echo "FAIL: expected installed='false' (skip), got '$ACTUAL'"
+            exit 1
+          fi
+          echo "PASS: installation was correctly skipped"
+      - name: Assert enry is on PATH and runs
+        run: |
+          if ! command -v enry > /dev/null 2>&1; then
+            echo "FAIL: enry not found on PATH"
+            exit 1
+          fi
+          VERSION_OUTPUT=$(enry --version)
+          echo "enry version output: $VERSION_OUTPUT"
+          echo "PASS: enry is available and runs"
