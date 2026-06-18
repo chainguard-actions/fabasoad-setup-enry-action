@@ -1,0 +1,63 @@
+name: Test force flag - skip when already installed
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Pre-install fake enry binary
+        run: |
+          set -e
+          cat > /tmp/enry << 'EOF'
+          #!/bin/sh
+          echo "enry version 2.8.0"
+          EOF
+          chmod +x /tmp/enry
+          sudo mv /tmp/enry /usr/local/bin/enry
+      - name: Verify enry pre-installed
+        run: |
+          enry --version
+          echo "fake enry pre-installed successfully"
+      - name: First call - force=false should skip
+        id: first-call
+        uses: .
+        with:
+          version: "latest"
+          force: "false"
+          github-token: ${{ github.token }}
+      - name: Assert first call installed=false (skipped)
+        env:
+          ACTUAL: ${{ steps.first-call.outputs.installed }}
+        run: |
+          echo "actual installed (first call, force=false): $ACTUAL"
+          if [ "$ACTUAL" != "false" ]; then
+            echo "FAIL: expected installed='false' with force=false when already installed, got '$ACTUAL'"
+            exit 1
+          fi
+          echo "PASS: first call correctly skipped (installed=false)"
+      - name: Second call - force=false should also skip
+        id: second-call
+        uses: .
+        with:
+          version: "latest"
+          force: "false"
+          github-token: ${{ github.token }}
+      - name: Assert second call installed=false (skipped again)
+        env:
+          ACTUAL: ${{ steps.second-call.outputs.installed }}
+        run: |
+          echo "actual installed (second call, force=false): $ACTUAL"
+          if [ "$ACTUAL" != "false" ]; then
+            echo "FAIL: expected installed='false' with force=false on second call, got '$ACTUAL'"
+            exit 1
+          fi
+          echo "PASS: second call correctly skipped (installed=false)"
+      - name: Assert enry is still available after both calls
+        run: |
+          if ! command -v enry > /dev/null 2>&1; then
+            echo "FAIL: enry not found in PATH after action calls"
+            exit 1
+          fi
+          echo "PASS: enry available after both action calls"
+          enry --version
