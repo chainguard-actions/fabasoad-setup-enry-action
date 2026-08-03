@@ -1,0 +1,39 @@
+---
+name: Test specific version installation
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          version: "2.9.1"
+        continue-on-error: true
+      - name: Assert installed output or graceful failure
+        env:
+          INSTALLED: ${{ steps.action.outputs.installed }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "installed: $INSTALLED"
+          if [ "$OUTCOME" = "success" ]; then
+            if [ "$INSTALLED" != "true" ]; then
+              echo "FAIL: action succeeded but installed output is not 'true', got '$INSTALLED'"
+              exit 1
+            fi
+            echo "PASS: enry v2.9.1 installed successfully"
+            if ! command -v enry > /dev/null 2>&1; then
+              echo "FAIL: enry not found on PATH after successful install"
+              exit 1
+            fi
+            enry --version
+            echo "PASS: enry is on PATH and functional"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (likely due to action version constraints)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

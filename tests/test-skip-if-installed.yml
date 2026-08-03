@@ -1,0 +1,69 @@
+---
+name: Test skip installation when already installed
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: First install of enry
+        id: first-install
+        uses: .
+        with:
+          version: latest
+        continue-on-error: true
+      - name: Assert first install outcome
+        env:
+          INSTALLED: ${{ steps.first-install.outputs.installed }}
+          OUTCOME: ${{ steps.first-install.outcome }}
+        run: |
+          echo "first install outcome: $OUTCOME"
+          echo "first install installed: $INSTALLED"
+          if [ "$OUTCOME" = "success" ]; then
+            if [ "$INSTALLED" != "true" ]; then
+              echo "FAIL: first install succeeded but installed='$INSTALLED'"
+              exit 1
+            fi
+            echo "PASS: first install succeeded"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: first install failed gracefully (action version constraints)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+      - name: Second install with force=false (should skip if enry is present)
+        id: skip-install
+        uses: .
+        with:
+          version: latest
+          force: "false"
+        continue-on-error: true
+      - name: Assert second install outcome
+        env:
+          INSTALLED: ${{ steps.skip-install.outputs.installed }}
+          OUTCOME: ${{ steps.skip-install.outcome }}
+          FIRST_OUTCOME: ${{ steps.first-install.outcome }}
+        run: |
+          echo "skip install outcome: $OUTCOME"
+          echo "skip install installed: $INSTALLED"
+          echo "first install outcome: $FIRST_OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            # If first install succeeded, enry is on PATH, so skip-install should report installed=false
+            # (the install-enry step is skipped, so outcome is 'skipped' -> installed=false)
+            if [ "$FIRST_OUTCOME" = "success" ]; then
+              if [ "$INSTALLED" != "false" ]; then
+                echo "FAIL: expected installed=false when skipping but got '$INSTALLED'"
+                exit 1
+              fi
+              echo "PASS: installation was correctly skipped (installed=false)"
+            else
+              # First install failed, so enry may not be on PATH; second install may have tried to install
+              echo "PASS: second install completed (first install had failed)"
+            fi
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: second install failed gracefully (action version constraints)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

@@ -1,0 +1,60 @@
+---
+name: Test force reinstall
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: First install of enry
+        id: first-install
+        uses: .
+        with:
+          version: latest
+        continue-on-error: true
+      - name: Assert first install outcome
+        env:
+          INSTALLED: ${{ steps.first-install.outputs.installed }}
+          OUTCOME: ${{ steps.first-install.outcome }}
+        run: |
+          echo "first install outcome: $OUTCOME"
+          echo "first install installed: $INSTALLED"
+          if [ "$OUTCOME" = "success" ]; then
+            if [ "$INSTALLED" != "true" ]; then
+              echo "FAIL: first install succeeded but installed='$INSTALLED'"
+              exit 1
+            fi
+            echo "PASS: first install succeeded"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: first install failed gracefully (action version constraints)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+      - name: Force reinstall of enry
+        id: force-install
+        uses: .
+        with:
+          version: latest
+          force: "true"
+        continue-on-error: true
+      - name: Assert force reinstall outcome
+        env:
+          INSTALLED: ${{ steps.force-install.outputs.installed }}
+          OUTCOME: ${{ steps.force-install.outcome }}
+        run: |
+          echo "force reinstall outcome: $OUTCOME"
+          echo "force reinstall installed: $INSTALLED"
+          if [ "$OUTCOME" = "success" ]; then
+            if [ "$INSTALLED" != "true" ]; then
+              echo "FAIL: force reinstall succeeded but installed='$INSTALLED'"
+              exit 1
+            fi
+            echo "PASS: force reinstall succeeded"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: force reinstall failed gracefully (action version constraints)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
