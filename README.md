@@ -13,6 +13,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v0.4.0 | [`v0.4.0`](https://github.com/chainguard-actions/fabasoad-setup-enry-action/tree/v0.4.0) | [`84a9385`](https://github.com/fabasoad/setup-enry-action/commit/84a938519217e730824fd7b4b1fb12b52471b22d) |
 | v0.4.1 | [`v0.4.1`](https://github.com/chainguard-actions/fabasoad-setup-enry-action/tree/v0.4.1) | [`18f31b6`](https://github.com/fabasoad/setup-enry-action/commit/18f31b664f68fa6906f49e07567a31aa286cc24b) |
 | v0.4.2 | [`v0.4.2`](https://github.com/chainguard-actions/fabasoad-setup-enry-action/tree/v0.4.2) | [`e81ba89`](https://github.com/fabasoad/setup-enry-action/commit/e81ba89a68c7823cea7b3bf591999534f7236441) |
+| v0.4.3 | [`v0.4.3`](https://github.com/chainguard-actions/fabasoad-setup-enry-action/tree/v0.4.3) | [`b0f2093`](https://github.com/fabasoad/setup-enry-action/commit/b0f209311352caecf5b95ec6916cfe7e4adf1af2) |
 
 ## Privacy
 
