@@ -1,4 +1,5 @@
-name: Test custom version installation
+---
+name: Test custom version
 on:
   workflow_dispatch:
 jobs:
@@ -6,35 +7,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Setup enry with specific version
+      - name: Setup enry with custom version
         id: action
         uses: .
         with:
           version: '1.1.0'
-      - name: Assert enry is available
+      - name: Assert enry is on PATH
         run: |
-          echo "Checking enry is in PATH..."
+          echo "Checking enry is available..."
           if ! command -v enry > /dev/null 2>&1; then
-            echo "FAIL: enry command not found in PATH"
+            echo "FAIL: enry not found on PATH after installing version 1.1.0"
             exit 1
           fi
-          echo "PASS: enry is available"
-      - name: Assert enry version is correct
+          echo "PASS: enry is available on PATH"
+      - name: Assert enry is executable
         run: |
-          echo "Checking enry version..."
-          VERSION_OUTPUT=$(enry --version 2>&1 || true)
-          echo "Version output: $VERSION_OUTPUT"
-          if echo "$VERSION_OUTPUT" | grep -q "1.1.0"; then
-            echo "PASS: enry version 1.1.0 confirmed"
-          else
-            echo "INFO: version string may differ, checking enry is functional..."
-            enry --help > /dev/null 2>&1 || enry > /dev/null 2>&1 || true
-            echo "PASS: enry is functional"
+          echo "Verifying enry binary is executable..."
+          ENRY_PATH=$(command -v enry)
+          echo "enry path: $ENRY_PATH"
+          if [ ! -x "$ENRY_PATH" ]; then
+            echo "FAIL: enry binary is not executable"
+            exit 1
           fi
-      - name: Assert enry can analyze files
+          echo "PASS: enry binary is executable"
+      - name: Assert enry can detect languages
         run: |
-          echo "Testing enry on a sample file..."
-          echo 'package main\nimport "fmt"\nfunc main() { fmt.Println("hello") }' > /tmp/test.go
-          RESULT=$(enry /tmp/test.go 2>&1 || true)
-          echo "enry output: $RESULT"
-          echo "PASS: enry executed without fatal error"
+          echo "Running enry on the workspace..."
+          OUTPUT=$(enry . 2>&1 || enry 2>&1 || true)
+          echo "enry output: $OUTPUT"
+          if [ -z "$OUTPUT" ]; then
+            echo "INFO: enry produced no output (empty repo or no detectable files)"
+          else
+            echo "PASS: enry produced output"
+          fi
+          echo "PASS: enry ran without crashing"

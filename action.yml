@@ -80,8 +80,8 @@ runs:
           tar -xvzf "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.tar.gz"
           chmod +x ./enry
         fi
-        safe_path=$(printf '%s' "$ENRY_PATH" | tr -d '\n\r')
-        echo "$safe_path" >> $GITHUB_PATH
+        safe=$(printf '%s' "$ENRY_PATH" | tr -d '\n\r')
+        echo "$safe" >> "$GITHUB_PATH"
       shell: sh
       working-directory: ${{ steps.info.outputs.ENRY_PATH }}
     - name: Clean up
