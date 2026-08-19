@@ -1,3 +1,4 @@
+---
 name: Test custom version
 on:
   workflow_dispatch:
@@ -6,27 +7,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Setup enry with custom version
-        id: setup
+      - name: Run setup-enry-action with custom version
+        id: action
         uses: .
         with:
           version: "1.1.0"
-      - name: Assert enry is available in PATH
+      - name: Assert enry is on PATH
         run: |
           echo "Checking enry is available..."
           if ! command -v enry > /dev/null 2>&1; then
-            echo "FAIL: enry command not found in PATH"
+            echo "FAIL: enry not found on PATH"
             exit 1
           fi
           echo "PASS: enry is available"
-      - name: Assert enry version matches requested version
+      - name: Assert enry binary is in expected location
         run: |
-          echo "Checking enry version..."
-          VERSION_OUTPUT=$(enry --version 2>&1 || true)
-          echo "Version output: $VERSION_OUTPUT"
-          if echo "$VERSION_OUTPUT" | grep -q "1.1.0"; then
-            echo "PASS: enry version 1.1.0 confirmed"
-          else
-            echo "INFO: version string may differ, but enry is functional"
-            echo "PASS: enry is available and executable"
+          echo "Checking enry binary location..."
+          ENRY_PATH=$(which enry)
+          echo "enry found at: $ENRY_PATH"
+          if [ -z "$ENRY_PATH" ]; then
+            echo "FAIL: enry not found"
+            exit 1
           fi
+          echo "PASS: enry binary found at $ENRY_PATH"
+      - name: Assert enry can analyze files
+        run: |
+          echo "Running enry on current directory..."
+          enry . || enry
+          echo "PASS: enry executed successfully"

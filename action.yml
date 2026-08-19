@@ -66,34 +66,34 @@ runs:
       if: ${{ steps.info.outputs.ENRY_INSTALLED == 'false' }}
       env:
         RUNNER_OS: ${{ runner.os }}
-        VERSION: ${{ inputs.version }}
+        INPUT_VERSION: ${{ inputs.version }}
         ENRY_BINARY: ${{ steps.info.outputs.ENRY_BINARY }}
         ENRY_PATH: ${{ steps.info.outputs.ENRY_PATH }}
       run: |
         if [ "$RUNNER_OS" = "Windows" ]; then
-          echo " enry-v$VERSION-$ENRY_BINARY-amd64.zip" >> "enry-v$VERSION-$ENRY_BINARY-amd64.zip.md5"
-          md5sum --check "enry-v$VERSION-$ENRY_BINARY-amd64.zip.md5"
-          unzip "enry-v$VERSION-$ENRY_BINARY-amd64.zip"
+          echo " enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.zip" >> "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.zip.md5"
+          md5sum --check "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.zip.md5"
+          unzip "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.zip"
         else
-          echo " enry-v$VERSION-$ENRY_BINARY-amd64.tar.gz" >> "enry-v$VERSION-$ENRY_BINARY-amd64.tar.gz.md5"
-          md5sum --check "enry-v$VERSION-$ENRY_BINARY-amd64.tar.gz.md5"
-          tar -xvzf "enry-v$VERSION-$ENRY_BINARY-amd64.tar.gz"
+          echo " enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.tar.gz" >> "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.tar.gz.md5"
+          md5sum --check "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.tar.gz.md5"
+          tar -xvzf "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.tar.gz"
           chmod +x ./enry
         fi
         safe_path=$(printf '%s' "$ENRY_PATH" | tr -d '\n\r')
-        echo "$safe_path" >> "$GITHUB_PATH"
+        echo "$safe_path" >> $GITHUB_PATH
       shell: sh
       working-directory: ${{ steps.info.outputs.ENRY_PATH }}
     - name: Clean up
       if: ${{ steps.info.outputs.ENRY_INSTALLED == 'false' }}
       env:
         RUNNER_OS: ${{ runner.os }}
-        VERSION: ${{ inputs.version }}
+        INPUT_VERSION: ${{ inputs.version }}
         ENRY_BINARY: ${{ steps.info.outputs.ENRY_BINARY }}
       run: |
         if [ "$RUNNER_OS" = "macOS" ]; then
           brew uninstall md5sha1sum
         fi
-        rm -f "enry-v$VERSION-$ENRY_BINARY-amd64."*
+        rm -f "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64."*
       shell: sh
       working-directory: ${{ steps.info.outputs.ENRY_PATH }}
