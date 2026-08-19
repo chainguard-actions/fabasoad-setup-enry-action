@@ -76,7 +76,7 @@ runs:
     - name: Download enry
       if: ${{ steps.info.outputs.bin-installed == 'false' }}
       id: download-enry
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       with:
         repository: "go-enry/enry"
         ref: ${{ format('v{0}', inputs.version == 'latest' && steps.latest-release.outputs.version || inputs.version) }}
@@ -95,7 +95,9 @@ runs:
         INPUT_VERSION: "${{ inputs.version }}"
         ENRY_REF: "${{ steps.download-enry.outputs.ref }}"
       run: |
-        go build -ldflags="-X main.commit=$(git rev-parse HEAD) -X main.version=${ENRY_REF}"
+        _commit=$(git rev-parse HEAD)
+        _version="${ENRY_REF}"
+        go build -ldflags="-X main.commit=${_commit} -X main.version=${_version}"
         echo "$(pwd)" >> "$GITHUB_PATH"
       shell: sh
       working-directory: ${{ steps.info.outputs.bin-path }}

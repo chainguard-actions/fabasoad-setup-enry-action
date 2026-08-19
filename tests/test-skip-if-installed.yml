@@ -1,5 +1,5 @@
 ---
-name: Test force install
+name: Test skip if already installed (force=false)
 on:
   workflow_dispatch:
 jobs:
@@ -8,7 +8,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: First install of enry (no force)
+      - name: First install of enry
         id: first-install
         uses: .
         with:
@@ -33,28 +33,30 @@ jobs:
           fi
           echo "enry found at: $(command -v enry)"
           enry --version
-      - name: Run action with force=true (should reinstall even though enry exists)
-        id: force-install
+      - name: Run action with force=false (should skip install since enry is already installed)
+        id: skip-install
         uses: .
         with:
           version: latest
-          force: "true"
+          force: "false"
           github-token: ${{ github.token }}
-      - name: Assert force install output is true
+      - name: Assert install was skipped (installed=false)
         env:
-          ACTUAL: ${{ steps.force-install.outputs.installed }}
+          ACTUAL: ${{ steps.skip-install.outputs.installed }}
         run: |
           echo "actual: $ACTUAL"
-          if [ "$ACTUAL" != "true" ]; then
-            echo "FAIL: expected installed=true with force=true but got '$ACTUAL'"
+          # When enry is already installed and force=false, the install-enry step
+          # is skipped, so its outcome != 'success', meaning installed=false
+          if [ "$ACTUAL" != "false" ]; then
+            echo "FAIL: expected installed=false (skipped) but got '$ACTUAL'"
             exit 1
           fi
-          echo "PASS: force install succeeded"
-      - name: Assert enry is still available after force reinstall
+          echo "PASS: install was correctly skipped"
+      - name: Assert enry is still available
         run: |
           echo "Checking enry is available..."
           if ! command -v enry > /dev/null 2>&1; then
-            echo "FAIL: enry not found on PATH after force reinstall"
+            echo "FAIL: enry not found on PATH"
             exit 1
           fi
           echo "enry found at: $(command -v enry)"
