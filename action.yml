@@ -64,7 +64,7 @@ runs:
       working-directory: "${{ github.action_path }}/src"
     - name: Setup jq
       if: ${{ steps.info.outputs.bin-installed == 'false' }}
-      uses: dcarbone/install-jq-action@b7ef57d46ece78760b4019dbc4080a1ba2a40b45 # v3
+      uses: chainguard-actions/dcarbone-install-jq-action@efa8e9f7a3dfcc191ed4b728b7b62ecc349a4ffe # v3
     - name: Get latest release
       if: ${{ steps.info.outputs.bin-installed == 'false' && inputs.version == 'latest' }}
       id: latest-release
@@ -76,7 +76,7 @@ runs:
     - name: Download enry
       if: ${{ steps.info.outputs.bin-installed == 'false' }}
       id: download-enry
-      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      uses: chainguard-actions/actions-checkout@59b7218bfc2eaabc464f1254f6e1dac5bda91d94 # v4
       with:
         repository: "go-enry/enry"
         ref: ${{ format('v{0}', inputs.version == 'latest' && steps.latest-release.outputs.version || inputs.version) }}
@@ -84,7 +84,7 @@ runs:
         path: ${{ steps.info.outputs.bin-dir }}
     - name: Setup Go
       if: ${{ steps.info.outputs.bin-installed == 'false' && steps.info.outputs.go-installed == 'false' }}
-      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      uses: chainguard-actions/actions-setup-go@320f6f2294d8e82641a27424fb8def0a2a1e80e6 # v5
       with:
         go-version-file: "${{ steps.info.outputs.bin-path }}/go.mod"
         cache-dependency-path: "${{ steps.info.outputs.bin-path }}"
@@ -93,11 +93,9 @@ runs:
       id: install-enry
       env:
         INPUT_VERSION: "${{ inputs.version }}"
-        ENRY_REF: "${{ steps.download-enry.outputs.ref }}"
+        ENRY_VERSION: "${{ steps.download-enry.outputs.ref }}"
       run: |
-        _commit=$(git rev-parse HEAD)
-        _version="${ENRY_REF}"
-        go build -ldflags="-X main.commit=${_commit} -X main.version=${_version}"
+        go build -ldflags="-X main.commit=$(git rev-parse HEAD) -X main.version=${ENRY_VERSION}"
         echo "$(pwd)" >> "$GITHUB_PATH"
       shell: sh
       working-directory: ${{ steps.info.outputs.bin-path }}

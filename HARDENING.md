@@ -16,7 +16,7 @@ Action **fabasoad--setup-enry-action/v0.4.0** was hardened automatically. 2 find
 
 ### script-injection (severity: high)
 
-Sub-rule (a): A GitHub Actions expression `${{ steps.download-enry.outputs.ref }}` is interpolated directly inside a `run:` shell command string in the 'Install enry' step. The `steps.*.outputs.*` context is workflow-controllable and flows through YAML template substitution before the shell sees it, enabling script injection. The offending line is: `go build -ldflags="-X main.commit=$(git rev-parse HEAD) -X main.version=${{ steps.download-enry.outputs.ref }}"`
+Sub-rule (a): The 'Install enry' run: block in action.yml directly interpolates a ${{ steps.download-enry.outputs.ref }} expression inside the shell command string: `go build -ldflags="-X main.commit=$(git rev-parse HEAD) -X main.version=${{ steps.download-enry.outputs.ref }}"`. The steps.*.outputs.* context flows through YAML template substitution before the shell processes it, allowing an attacker who can influence that output value to inject arbitrary shell commands.
 
 Locations:
 
@@ -24,7 +24,7 @@ Locations:
 
 ### unpinned-uses (severity: high)
 
-Three `uses:` references in action.yml are pinned to mutable tags rather than full 40-character commit SHAs, making the action vulnerable to supply-chain attacks if those tags are moved: (1) `uses: dcarbone/install-jq-action@v3` (line 54), (2) `uses: actions/checkout@v4` (line 68), (3) `uses: actions/setup-go@v5` (line 77). Each should be pinned to a specific commit SHA with the tag as a comment.
+action.yml references three external actions using mutable tag refs instead of pinned 40-character commit SHAs, making the action vulnerable to supply-chain attacks if those tags are moved: `dcarbone/install-jq-action@v3` (line 54), `actions/checkout@v4` (line 68), `actions/setup-go@v5` (line 77).
 
 Locations:
 
@@ -40,23 +40,13 @@ Locations:
 
 **Notes:**
 
-Fixed all three unpinned 'uses:' references by pinning to full 40-character commit SHAs with tag comments: dcarbone/install-jq-action@v3 → b7ef57d46ece78760b4019dbc4080a1ba2a40b45, actions/checkout@v4 → 11d5960a326750d5838078e36cf38b85af677262, actions/setup-go@v5 → 40f1582b2485089dde7abd97c1529aa768e1baff. Fixed script injection in the 'Install enry' step by moving ${{ steps.download-enry.outputs.ref }} out of the run: shell string into the step's env: block as ENRY_REF, then referencing it as ${ENRY_REF} in the shell command.
+Fixed all three unpinned action references by pinning to full commit SHAs: dcarbone/install-jq-action@v3 → b7ef57d46ece78760b4019dbc4080a1ba2a40b45, actions/checkout@v4 → 11d5960a326750d5838078e36cf38b85af677262, actions/setup-go@v5 → 40f1582b2485089dde7abd97c1529aa768e1baff. Fixed script injection in the 'Install enry' step by moving ${{ steps.download-enry.outputs.ref }} into the env: block as ENRY_VERSION and referencing it as ${ENRY_VERSION} in the shell command.
 
 ### Iteration 2
 
-**Fixes applied:** script-injection, github-env-injection, unpinned-uses, missing-permissions
+**Fixes applied:** github-env-injection
 
 **Notes:**
 
-Fixed all 5 findings across 6 files:
-
-1. script-injection (functional-tests.yml, lines 43/75/107/143): Moved all ${{ }} expressions from run: blocks into env: blocks. RELEASES, INSTALLED, INSTALLED_1, INSTALLED_2, MATRIX_FORCE env vars now hold the values, referenced as plain shell variables.
-
-2. script-injection (action.yml, line 107): The ENRY_REF env var (already properly in env block) is now assigned to a local _version variable with explicit double-quoting before use in the go build ldflags string.
-
-3. github-env-injection (functional-tests.yml, line 44): The releases output is now passed via RELEASES env var using printf '%s', and the result is sanitized with tr -d '\n\r' before writing to $GITHUB_OUTPUT.
-
-4. unpinned-uses: Pinned yakubique/github-releases@v1.2 to SHA 2827d6f627dc289b8cbbc9b4d030956d67c37c68, actions/checkout@v4 to SHA 11d5960a326750d5838078e36cf38b85af677262 (3 occurrences), and all 5 fabasoad/reusable-workflows references to SHA 10062f8186847226cb4865efbb8047795d372bae.
-
-5. missing-permissions: Added permissions blocks to functional-tests.yml (contents: read), linting.yml (contents: read), release.yml (contents: write), sync-labels.yml (contents: read + issues: write), update-license.yml (contents: write). security.yml already had job-level permissions.
+Fixed src/collect-info.sh: added sanitization of bin_path before writing to $GITHUB_OUTPUT. The $GITHUB_WORKSPACE environment variable is workflow-controlled and could contain newline characters that would inject arbitrary key=value pairs into $GITHUB_OUTPUT. Added `safe_bin_path=$(printf '%s' "$bin_path" | tr -d '\n\r')` and changed the echo to use `safe_bin_path` instead of `bin_path`. The script uses POSIX sh (#!/usr/bin/env sh), so the fix uses only POSIX-compatible commands.
 
