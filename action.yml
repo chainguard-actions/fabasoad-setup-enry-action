@@ -64,7 +64,7 @@ runs:
       working-directory: "${{ github.action_path }}/src"
     - name: Setup jq
       if: ${{ steps.info.outputs.bin-installed == 'false' }}
-      uses: dcarbone/install-jq-action@4fcb5062d7ce9bc4382d1a352d19ba3ba2c317c1 # v4.0.1
+      uses: chainguard-actions/dcarbone-install-jq-action@9c5091230f8d415b141d7be4c5f3e5f9a69fd81e # v4.0.1
     - name: Get latest release
       if: ${{ steps.info.outputs.bin-installed == 'false' && inputs.version == 'latest' }}
       id: latest-release
@@ -76,7 +76,7 @@ runs:
     - name: Download enry
       if: ${{ steps.info.outputs.bin-installed == 'false' }}
       id: download-enry
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      uses: chainguard-actions/actions-checkout@279383ec3b8d70f964ffa5a2151ea3d2a5317ec6 # v7
       with:
         repository: "go-enry/enry"
         ref: "${{ format('v{0}', case(inputs.version == 'latest', steps.latest-release.outputs.version, inputs.version)) }}"
@@ -85,7 +85,7 @@ runs:
         persist-credentials: "false"
     - name: Setup Go
       if: ${{ steps.info.outputs.bin-installed == 'false' && steps.info.outputs.go-installed == 'false' }}
-      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      uses: chainguard-actions/actions-setup-go@20018d272d0aca816f467eb6dfcb403725e5d7ca # v6
       with:
         go-version-file: "${{ steps.info.outputs.bin-path }}/go.mod"
         cache-dependency-path: "${{ steps.info.outputs.bin-path }}"
@@ -97,7 +97,8 @@ runs:
         DOWNLOAD_ENRY_OUTPUT_REF: "${{ steps.download-enry.outputs.ref }}"
       run: |
         commit=$(git rev-parse HEAD)
-        go build -ldflags="-X main.commit=${commit} -X main.version=${DOWNLOAD_ENRY_OUTPUT_REF}"
+        ldflags=$(printf -- '-X main.commit=%s -X main.version=%s' "${commit}" "${DOWNLOAD_ENRY_OUTPUT_REF}")
+        go build -ldflags="${ldflags}"
         target_dir="${RUNNER_TEMP}/bin"
         mkdir -p "${target_dir}"
         mv enry "${target_dir}"

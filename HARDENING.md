@@ -10,79 +10,58 @@
 
 **Harden Agent Version:** `2`
 
-Action **fabasoad--setup-enry-action/v0.4.3** was hardened automatically. 3 finding(s) were identified and resolved across 1 iteration(s).
+Action **fabasoad--setup-enry-action/v0.4.3** was hardened automatically. 2 finding(s) were identified and resolved across 2 iteration(s).
 
 ## Findings Fixed
 
 ### unpinned-uses (severity: high)
 
-Multiple `uses:` references are pinned to mutable tags or branch names instead of full 40-character commit SHAs, making the action vulnerable to supply-chain attacks:
-- action.yml: `actions/checkout@v7` (tag)
-- action.yml: `actions/setup-go@v6` (tag)
-- functional-tests.yml: `actions/checkout@v7` (tag, used 3 times)
-- linting.yml: `fabasoad/reusable-workflows/...@main` (branch)
-- release.yml: `fabasoad/reusable-workflows/...@main` (branch)
-- security.yml: `fabasoad/reusable-workflows/...@main` (branch)
-- sync-labels.yml: `fabasoad/reusable-workflows/...@main` (branch)
-- update-license.yml: `fabasoad/reusable-workflows/...@main` (branch)
+Two `uses:` references in action.yml are pinned to mutable tag refs rather than full 40-character commit SHAs, making the action vulnerable to supply-chain attacks if those tags are moved:
+- `uses: actions/checkout@v7` (line ~57) — should be pinned to a full SHA
+- `uses: actions/setup-go@v6` (line ~68) — should be pinned to a full SHA
+
+The third reference (`dcarbone/install-jq-action@4fcb5062d7ce9bc4382d1a352d19ba3ba2c317c1`) is correctly pinned and passes.
 
 Locations:
 
-- `action.yml:67`
-- `action.yml:77`
-- `.github/workflows/functional-tests.yml:57`
-- `.github/workflows/functional-tests.yml:96`
-- `.github/workflows/functional-tests.yml:118`
-- `.github/workflows/linting.yml:12`
-- `.github/workflows/release.yml:9`
-- `.github/workflows/security.yml:18`
-- `.github/workflows/sync-labels.yml:10`
-- `.github/workflows/update-license.yml:10`
-
-### script-injection (severity: high)
-
-Rule (a): In functional-tests.yml, the `test-force` job's 'Test action completion' step directly interpolates `${{ matrix.force }}` inside a `run:` shell script. The matrix value flows through YAML template substitution before the shell sees it, allowing shell metacharacter injection. Offending line: `"${{ matrix.force }}"`.
-
-Rule (b): In action.yml, the 'Install enry' step uses the env var `${DOWNLOAD_ENRY_OUTPUT_REF}` (sourced from `steps.download-enry.outputs.ref`, a workflow-controllable step output) unquoted inside a shell string: `go build -ldflags="-X main.commit=$(git rev-parse HEAD) -X main.version=${DOWNLOAD_ENRY_OUTPUT_REF}"`. The unquoted expansion allows shell metacharacter injection.
-
-Locations:
-
-- `.github/workflows/functional-tests.yml:130`
-- `action.yml:89`
+- `action.yml:57`
+- `action.yml:68`
 
 ### github-env-injection (severity: high)
 
-Two unsanitized writes to special GitHub environment files were found:
+In `src/collect-info.sh`, the variable `bin_path` is constructed by concatenating the inherited process environment variable `$GITHUB_WORKSPACE` with a locally-computed suffix, and then written directly to `$GITHUB_OUTPUT` without sanitization (`printf '%s' ... | tr -d '\n\r'`). In a composite action, `$GITHUB_WORKSPACE` is set by the calling workflow and is therefore workflow-controlled/untrusted. A malicious caller could set `GITHUB_WORKSPACE` to a value containing newline characters, injecting arbitrary key=value pairs into `$GITHUB_OUTPUT` (and potentially influencing subsequent steps).
 
-1. In functional-tests.yml ('Prepare list' step): the variable `versions` is derived from `${RELEASES}` (which holds `steps.github-releases.outputs.releases`, a workflow-controllable step output) processed through `jq`, then written directly to `$GITHUB_OUTPUT` via `echo "versions=${versions}" >> "$GITHUB_OUTPUT"` without the required `printf '%s' ... | tr -d '\n\r'` sanitization.
+Offending line:
+```sh
+bin_path="$GITHUB_WORKSPACE/${bin_dir}"
+echo "bin-path=${bin_path}" >> "$GITHUB_OUTPUT"   # FAIL: no tr -d newlines
+```
 
-2. In src/get-latest-release.sh (called by the 'Get latest release' step in action.yml): the variable `version` is fetched from the GitHub API and filtered through `jq`, then written directly to `$GITHUB_OUTPUT` via `echo "version=${version}" >> "$GITHUB_OUTPUT"` without sanitization. An attacker who can influence the API response (e.g., via a crafted tag name) could inject newlines to poison subsequent GITHUB_OUTPUT entries.
+Fix:
+```sh
+safe_bin_path=$(printf '%s' "$GITHUB_WORKSPACE/${bin_dir}" | tr -d '\n\r')
+echo "bin-path=${safe_bin_path}" >> "$GITHUB_OUTPUT"
+```
 
 Locations:
 
-- `.github/workflows/functional-tests.yml:44`
-- `src/get-latest-release.sh:13`
+- `src/collect-info.sh:33`
 
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** unpinned-uses, script-injection, github-env-injection
+**Fixes applied:** unpinned-uses, github-env-injection
 
 **Notes:**
 
-Fixed all three finding categories:
+Fixed three issues: (1) Pinned actions/checkout@v7 to commit SHA 3d3c42e5aac5ba805825da76410c181273ba90b1 in action.yml line ~57; (2) Pinned actions/setup-go@v6 to commit SHA 924ae3a1cded613372ab5595356fb5720e22ba16 in action.yml line ~68; (3) Fixed github-env-injection in src/collect-info.sh by replacing the direct echo of bin_path with a sanitized version using `printf '%s' "$GITHUB_WORKSPACE/${bin_dir}" | tr -d '\n\r'` to strip any newline characters that could be injected via the workflow-controlled GITHUB_WORKSPACE variable.
 
-1. unpinned-uses: Pinned all 10 mutable references to full 40-char SHAs:
-   - actions/checkout@v7 → @3d3c42e5aac5ba805825da76410c181273ba90b1 (action.yml + 3x functional-tests.yml)
-   - actions/setup-go@v6 → @924ae3a1cded613372ab5595356fb5720e22ba16 (action.yml)
-   - fabasoad/reusable-workflows@main → @c5bd8945762dab6d2f5168b65f10355887ea40a3 (linting.yml, release.yml, security.yml, sync-labels.yml, update-license.yml)
+### Iteration 2
 
-2. script-injection: 
-   - functional-tests.yml test-force job: Moved ${{ matrix.force }} to MATRIX_FORCE env var, referenced as ${MATRIX_FORCE} in shell
-   - action.yml Install enry step: Extracted git rev-parse to a separate variable for cleaner ldflags construction
+**Fixes applied:** script-injection
 
-3. github-env-injection:
-   - functional-tests.yml Prepare list step: Added `safe_versions=$(printf '%s' "${versions}" | tr -d '\n\r')` before writing to GITHUB_OUTPUT
-   - src/get-latest-release.sh: Added `safe_version=$(printf '%s' "${version}" | tr -d '\n\r')` before writing to GITHUB_OUTPUT
+**Notes:**
+
+Fixed script injection in the 'Install enry' step (action.yml line 85). The original code expanded `${DOWNLOAD_ENRY_OUTPUT_REF}` unquoted inside a double-quoted shell string, allowing command substitution if the ref value contained `$(...)`. The fix uses `printf -- '-X main.commit=%s -X main.version=%s' "${commit}" "${DOWNLOAD_ENRY_OUTPUT_REF}"` to safely embed both values as literal strings (the `%s` format specifier does not interpret shell metacharacters), stores the result in a local `ldflags` variable, and passes it to `go build` as `"${ldflags}"`. Shell variable expansion does not re-interpret command substitutions within variable contents, so the fix is safe.
 

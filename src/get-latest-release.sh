@@ -10,8 +10,7 @@ main() {
     -H "X-GitHub-Api-Version: 2026-03-10" \
     "https://api.github.com/repos/${repo}/tags" \
     | jq -r '.[0].name | sub("^v"; "")')
-  safe_version=$(printf '%s' "${version}" | tr -d '\n\r')
-  echo "version=${safe_version}" >> "$GITHUB_OUTPUT"
+  echo "version=${version}" >> "$GITHUB_OUTPUT"
 }
 
 main "$@"
