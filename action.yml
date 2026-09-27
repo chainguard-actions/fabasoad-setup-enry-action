@@ -34,7 +34,7 @@ runs:
       env:
         RUNNER_OS: ${{ runner.os }}
       run: |
-        ENRY_INSTALLED=$(if command -v enry > /dev/null 2>&1; then echo true; else echo false; fi)
+        ENRY_INSTALLED=$(if command -v enry >/dev/null 2>&1; then echo true; else echo false; fi)
         echo "ENRY_INSTALLED=$ENRY_INSTALLED" >> $GITHUB_OUTPUT
         if [ "$RUNNER_OS" = "macOS" ]; then
           ENRY_BINARY=darwin
@@ -49,7 +49,7 @@ runs:
       shell: sh
     - name: Download enry
       if: ${{ steps.info.outputs.ENRY_INSTALLED == 'false' }}
-      uses: robinraju/release-downloader@768b85c8d69164800db5fc00337ab917daf3ce68 # v1.7
+      uses: chainguard-actions/robinraju-release-downloader@f623433c0fd9b1efe1b956bd2968bb1e0265335d # v1.7
       with:
         repository: go-enry/enry
         latest: false
@@ -80,8 +80,8 @@ runs:
           tar -xvzf "enry-v${INPUT_VERSION}-${ENRY_BINARY}-amd64.tar.gz"
           chmod +x ./enry
         fi
-        safe_path=$(printf '%s' "$ENRY_PATH" | tr -d '\n\r')
-        echo "$safe_path" >> $GITHUB_PATH
+        safe=$(printf '%s' "$ENRY_PATH" | tr -d '\n\r')
+        echo "$safe" >> "$GITHUB_PATH"
       shell: sh
       working-directory: ${{ steps.info.outputs.ENRY_PATH }}
     - name: Clean up
