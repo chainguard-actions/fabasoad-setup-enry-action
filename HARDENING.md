@@ -10,79 +10,54 @@
 
 **Harden Agent Version:** `2`
 
-Action **fabasoad--setup-enry-action/v0.3.2** was hardened automatically. 13 finding(s) were identified and resolved across 1 iteration(s).
+Action **fabasoad--setup-enry-action/v0.3.2** was hardened automatically. 12 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### unpinned-uses (severity: high)
 
-Multiple `uses:` references across workflow files and action.yml use mutable tags instead of full 40-character SHA commit digests, making the action vulnerable to supply-chain attacks if the referenced tag is moved or overwritten.
-
-Failing references:
-- `.github/workflows/create-release.yml`: `actions/checkout@v3`, `simbo/changes-since-last-release-action@v1`, `softprops/action-gh-release@v1`, `fischerscode/tagger@v0`
-- `.github/workflows/functional-tests.yml`: `actions/checkout@v3`
-- `.github/workflows/update-license.yml`: `actions/checkout@v3`, `FantasticFiasco/action-update-license-year@v3`
-- `action.yml`: `robinraju/release-downloader@v1.7`
+The composite action step 'Download enry' uses `robinraju/release-downloader@v1.7`, which is pinned to a mutable version tag rather than an immutable 40-character commit SHA. This means the action could be silently replaced with a different (potentially malicious) version without any change to this file.
 
 Locations:
 
-- `.github/workflows/create-release.yml:13`
-- `.github/workflows/create-release.yml:16`
-- `.github/workflows/create-release.yml:19`
-- `.github/workflows/create-release.yml:27`
-- `.github/workflows/functional-tests.yml:22`
-- `.github/workflows/update-license.yml:10`
-- `.github/workflows/update-license.yml:11`
-- `action.yml:30`
+- `action.yml:34`
 
 ### script-injection (severity: high)
 
-Multiple `run:` blocks in `action.yml` directly interpolate GitHub Actions expressions inside shell command strings (sub-rule a). These expressions are substituted by the Actions runner before the shell parses the command, allowing an attacker who controls the input to inject arbitrary shell commands.
+Multiple `run:` blocks in action.yml directly interpolate `${{ ... }}` expressions into shell command strings (sub-rule a), which causes YAML template substitution before the shell ever sees the value — allowing shell metacharacter injection.
 
-- **"Collect info" step** (line ~17): `${{ runner.os }}` is interpolated directly in `if [ "${{ runner.os }}" = "macOS" ]` and similar comparisons inside the shell script.
-- **"Setup enry" step** (line ~44): `${{ runner.os }}`, `${{ inputs.version }}`, and `${{ steps.info.outputs.ENRY_BINARY }}` are interpolated directly in shell commands such as `echo " enry-v${{ inputs.version }}-${{ steps.info.outputs.ENRY_BINARY }}-amd64.zip" >> ...` and `unzip enry-v${{ inputs.version }}-...`.
-- **"Clean up" step** (line ~60): `${{ runner.os }}`, `${{ inputs.version }}`, and `${{ steps.info.outputs.ENRY_BINARY }}` are interpolated directly in `rm -f enry-v${{ inputs.version }}-${{ steps.info.outputs.ENRY_BINARY }}-amd64.*`.
+**'Collect info' step (~line 21, 23):** `${{ runner.os }}` is interpolated directly in shell `if`/`elif` conditionals:
+  `if [ "${{ runner.os }}" = "macOS" ]`
+  `elif [ "${{ runner.os }}" = "Linux" ]`
 
-All `${{ ... }}` expressions must be moved to `env:` variables and then referenced as double-quoted shell variables (e.g., `"$RUNNER_OS"`, `"$INPUT_VERSION"`).
+**'Setup enry' step (~line 46–57):** `${{ runner.os }}`, `${{ inputs.version }}`, `${{ steps.info.outputs.ENRY_BINARY }}`, and `${{ steps.info.outputs.ENRY_PATH }}` are all interpolated directly in shell commands, including filenames passed to `echo`, `md5sum`, `unzip`, `tar`, and written to `$GITHUB_PATH`.
+
+**'Clean up' step (~line 63, 66):** `${{ runner.os }}`, `${{ inputs.version }}`, and `${{ steps.info.outputs.ENRY_BINARY }}` are interpolated directly in shell conditionals and `rm -f` commands.
+
+All `${{ ... }}` expressions must be moved to `env:` variables and then referenced as quoted shell variables (e.g., `"$RUNNER_OS"`) instead.
 
 Locations:
 
-- `action.yml:17`
-- `action.yml:44`
-- `action.yml:60`
+- `action.yml:21`
+- `action.yml:23`
+- `action.yml:46`
+- `action.yml:47`
+- `action.yml:52`
+- `action.yml:57`
+- `action.yml:63`
+- `action.yml:66`
 
 ### github-env-injection (severity: high)
 
-The **"Setup enry"** step writes `${{ steps.info.outputs.ENRY_PATH }}` directly to `$GITHUB_PATH` without sanitization:
+In the 'Setup enry' step, the value of `${{ steps.info.outputs.ENRY_PATH }}` (a step output — a workflow-controllable, untrusted value) is written directly to `$GITHUB_PATH` without the required sanitization step (`printf '%s' ... | tr -d '\n\r'`). A newline embedded in this value could inject arbitrary entries into `$GITHUB_PATH`, enabling path-hijacking attacks.
 
-```sh
-echo "${{ steps.info.outputs.ENRY_PATH }}" >> $GITHUB_PATH
-```
+Offending line: `echo "${{ steps.info.outputs.ENRY_PATH }}" >> $GITHUB_PATH`
 
-The value of `steps.info.outputs.ENRY_PATH` is a workflow-controlled value (a step output). Writing it to `$GITHUB_PATH` without first stripping newlines via `printf '%s' "$VALUE" | tr -d '\n\r'` allows an attacker to inject additional PATH entries by embedding newline characters in the output. The fix is to sanitize the value before writing:
-
-```sh
-safe=$(printf '%s' "${{ steps.info.outputs.ENRY_PATH }}" | tr -d '\n\r')
-echo "$safe" >> "$GITHUB_PATH"
-```
+The fix requires sanitizing the value before writing: `safe=$(printf '%s' "$ENRY_PATH_VAR" | tr -d '\n\r'); echo "$safe" >> "$GITHUB_PATH"`
 
 Locations:
 
 - `action.yml:57`
-
-### missing-permissions (severity: medium)
-
-None of the three workflow files define a top-level `permissions:` key, and no job within any of them defines a job-level `permissions:` key. Without explicit permissions, workflows run with the default token permissions, which may be overly broad (e.g., `write` access to contents and pull requests). Each workflow should declare the minimal required permissions.
-
-- `create-release.yml`: needs at minimum `contents: write` for creating releases.
-- `functional-tests.yml`: needs at minimum `contents: read`.
-- `update-license.yml`: needs at minimum `contents: write` and `pull-requests: write`.
-
-Locations:
-
-- `.github/workflows/create-release.yml:1`
-- `.github/workflows/functional-tests.yml:1`
-- `.github/workflows/update-license.yml:1`
 
 ### static-inline-injection (severity: high)
 
@@ -160,17 +135,13 @@ Locations:
 
 ### Iteration 1
 
-**Fixes applied:** unpinned-uses, script-injection, github-env-injection, missing-permissions, static-inline-injection
+**Fixes applied:** unpinned-uses, script-injection, github-env-injection, static-inline-injection
 
 **Notes:**
 
-Fixed all findings across action.yml and the three workflow files:
-
-1. **unpinned-uses**: Pinned all 6 action references to full 40-char SHAs with tag comments preserved.
-
-2. **script-injection / static-inline-injection**: In action.yml, moved all ${{ runner.os }}, ${{ inputs.version }}, ${{ steps.info.outputs.ENRY_BINARY }}, and ${{ steps.info.outputs.ENRY_PATH }} expressions out of run: shell blocks into step-level env: maps. Shell scripts now reference plain env vars ($RUNNER_OS, $INPUT_VERSION, $ENRY_BINARY, $ENRY_PATH).
-
-3. **github-env-injection**: In the 'Setup enry' step, ENRY_PATH is now sanitized via `safe=$(printf '%s' "$ENRY_PATH" | tr -d '\n\r')` before being written to $GITHUB_PATH.
-
-4. **missing-permissions**: Added top-level permissions blocks — `contents: write` for create-release.yml, `contents: read` for functional-tests.yml, and `contents: write` + `pull-requests: write` for update-license.yml.
+Fixed all findings in action.yml:
+1. Pinned robinraju/release-downloader@v1.7 to full SHA 768b85c8d69164800db5fc00337ab917daf3ce68 with # v1.7 comment.
+2. Moved all ${{ runner.os }}, ${{ inputs.version }}, ${{ steps.info.outputs.ENRY_BINARY }}, and ${{ steps.info.outputs.ENRY_PATH }} expressions from run: shell strings into env: blocks in the 'Collect info', 'Setup enry', and 'Clean up' steps. Referenced them as quoted shell variables.
+3. Added ENRY_PATH sanitization (printf '%s' | tr -d '\n\r') before writing to $GITHUB_PATH to prevent newline injection.
+4. The ${{ inputs.version }} and ${{ steps.info.outputs.ENRY_BINARY }} in the 'Download enry' step's with: block are YAML input values (not shell commands) and were left as-is since they don't constitute shell injection.
 

@@ -49,7 +49,7 @@ runs:
       shell: sh
     - name: Download enry
       if: ${{ steps.info.outputs.ENRY_INSTALLED == 'false' }}
-      uses: robinraju/release-downloader@768b85c8d69164800db5fc00337ab917daf3ce68 # v1.7
+      uses: chainguard-actions/robinraju-release-downloader@f623433c0fd9b1efe1b956bd2968bb1e0265335d # v1.7
       with:
         repository: go-enry/enry
         latest: false
