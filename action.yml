@@ -64,7 +64,7 @@ runs:
       working-directory: "${{ github.action_path }}/src"
     - name: Setup jq
       if: ${{ steps.info.outputs.bin-installed == 'false' }}
-      uses: chainguard-actions/dcarbone-install-jq-action@9c5091230f8d415b141d7be4c5f3e5f9a69fd81e # v4.0.1
+      uses: chainguard-actions/dcarbone-install-jq-action@2846181a40157881834402cc33a8423440062eac # v4.0.1
     - name: Get latest release
       if: ${{ steps.info.outputs.bin-installed == 'false' && inputs.version == 'latest' }}
       id: latest-release
